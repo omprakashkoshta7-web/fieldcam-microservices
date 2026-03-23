@@ -1,0 +1,118 @@
+services:
+  # ─── Auth Service ───────────────────────────────────────────────
+  - type: web
+    name: fieldcam-auth-service
+    runtime: node
+    rootDir: auth-service
+    buildCommand: npm install
+    startCommand: node src/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+  # ─── User Service ────────────────────────────────────────────────
+  - type: web
+    name: fieldcam-user-service
+    runtime: node
+    rootDir: user-service
+    buildCommand: npm install
+    startCommand: node src/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SERVER_HOST
+        fromService:
+          name: fieldcam-user-service
+          type: web
+          property: host
+
+  # ─── Project Service ─────────────────────────────────────────────
+  - type: web
+    name: fieldcam-project-service
+    runtime: node
+    rootDir: project-service
+    buildCommand: npm install && npm rebuild sharp
+    startCommand: node src/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SERVER_HOST
+        fromService:
+          name: fieldcam-project-service
+          type: web
+          property: host
+
+  # ─── Invoice Service ─────────────────────────────────────────────
+  - type: web
+    name: fieldcam-invoice-service
+    runtime: node
+    rootDir: invoice-service
+    buildCommand: npm install
+    startCommand: node src/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  # ─── API Gateway ─────────────────────────────────────────────────
+  - type: web
+    name: fieldcam-api-gateway
+    runtime: node
+    rootDir: api-gateway
+    buildCommand: npm install
+    startCommand: node src/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: AUTH_SERVICE_URL
+        fromService:
+          name: fieldcam-auth-service
+          type: web
+          property: url
+      - key: USER_SERVICE_URL
+        fromService:
+          name: fieldcam-user-service
+          type: web
+          property: url
+      - key: PROJECT_SERVICE_URL
+        fromService:
+          name: fieldcam-project-service
+          type: web
+          property: url
+      - key: INVOICE_SERVICE_URL
+        fromService:
+          name: fieldcam-invoice-service
+          type: web
+          property: url

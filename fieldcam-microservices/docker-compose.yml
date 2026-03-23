@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - USER_SERVICE_URL=http://user-service:3002
+      - PROJECT_SERVICE_URL=http://project-service:3003
+      - INVOICE_SERVICE_URL=http://invoice-service:3004
+    depends_on:
+      - auth-service
+      - user-service
+      - project-service
+      - invoice-service
+
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=7d
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - SERVER_HOST=localhost:3002
+    volumes:
+      - user_uploads:/app/uploads
+
+  project-service:
+    build: ./project-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - SERVER_HOST=localhost:3003
+    volumes:
+      - project_uploads:/app/uploads
+
+  invoice-service:
+    build: ./invoice-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+
+volumes:
+  user_uploads:
+  project_uploads:
