@@ -22,19 +22,28 @@ const PROJECT_URL = process.env.PROJECT_SERVICE_URL || 'http://localhost:3003';
 const INVOICE_URL = process.env.INVOICE_SERVICE_URL || 'http://localhost:3004';
 
 // Route map
-app.use('/api/auth',        proxy(AUTH_URL));
-app.use('/api/admin/login', proxy(AUTH_URL));
-app.use('/api/admin',       proxy(USER_URL));
-app.use('/api/profile',     proxy(USER_URL));
-app.use('/api/team',        proxy(USER_URL));
-app.use('/api/performance', proxy(USER_URL));
-app.use('/api/services',    proxy(USER_URL));
-app.use('/api/projects',    proxy(PROJECT_URL));
-app.use('/api/photos',      proxy(PROJECT_URL));
-app.use('/api/dashboard',   proxy(PROJECT_URL));
-app.use('/api/reports',     proxy(PROJECT_URL));
-app.use('/api/invoices',    proxy(INVOICE_URL));
-app.use('/api/earnings',    proxy(INVOICE_URL));
+app.use('/api/auth',                proxy(AUTH_URL));
+app.use('/api/admin/login',         proxy(AUTH_URL));
+
+// Admin routes — specific services first, then fallback to user-service
+app.use('/api/admin/projects',      proxy(PROJECT_URL));
+app.use('/api/admin/photos',        proxy(PROJECT_URL));
+app.use('/api/admin/reports',       proxy(PROJECT_URL));
+app.use('/api/admin/dashboard',     proxy(PROJECT_URL));
+app.use('/api/admin/invoices',      proxy(INVOICE_URL));
+app.use('/api/admin/earnings',      proxy(INVOICE_URL));
+app.use('/api/admin',               proxy(USER_URL));   // users, services, dashboard fallback
+
+app.use('/api/profile',             proxy(USER_URL));
+app.use('/api/team',                proxy(USER_URL));
+app.use('/api/performance',         proxy(USER_URL));
+app.use('/api/services',            proxy(USER_URL));
+app.use('/api/projects',            proxy(PROJECT_URL));
+app.use('/api/photos',              proxy(PROJECT_URL));
+app.use('/api/dashboard',           proxy(PROJECT_URL));
+app.use('/api/reports',             proxy(PROJECT_URL));
+app.use('/api/invoices',            proxy(INVOICE_URL));
+app.use('/api/earnings',            proxy(INVOICE_URL));
 
 app.get('/health', (_req, res) => res.json({
   status: 'ok',
