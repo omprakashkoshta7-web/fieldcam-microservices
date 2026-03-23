@@ -103,7 +103,4 @@ services:
       - key: PROJECT_SERVICE_URL
         value: https://fieldcam-microservices-product-h2yo.onrender.com
       - key: INVOICE_SERVICE_URL
-        fromService:
-          name: fieldcam-invoice-service
-          type: web
-          property: url
+        value: https://fieldcam-microservices-invoice.onrender.com
