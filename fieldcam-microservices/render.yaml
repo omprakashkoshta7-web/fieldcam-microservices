@@ -97,20 +97,11 @@ services:
       - key: PORT
         value: 10000
       - key: AUTH_SERVICE_URL
-        fromService:
-          name: fieldcam-auth-service
-          type: web
-          property: url
+        value: https://fieldcam-microservices-auth.onrender.com
       - key: USER_SERVICE_URL
-        fromService:
-          name: fieldcam-user-service
-          type: web
-          property: url
+        value: https://fieldcam-microservices-user.onrender.com
       - key: PROJECT_SERVICE_URL
-        fromService:
-          name: fieldcam-project-service
-          type: web
-          property: url
+        value: https://fieldcam-microservices-product-h2yo.onrender.com
       - key: INVOICE_SERVICE_URL
         fromService:
           name: fieldcam-invoice-service
