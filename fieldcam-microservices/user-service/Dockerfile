@@ -1,8 +1,9 @@
 FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 COPY src ./src
 RUN mkdir -p uploads
-EXPOSE 3002
+EXPOSE 10000
+ENV PORT=10000
 CMD ["node", "src/server.js"]
