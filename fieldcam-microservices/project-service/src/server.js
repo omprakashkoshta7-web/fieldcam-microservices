@@ -65,6 +65,7 @@ app.get('/api/admin/photos',                adminAuth, adminProj.getPhotos);
 app.patch('/api/admin/photos/:id/status',   adminAuth, adminProj.updatePhotoStatus);
 app.delete('/api/admin/photos/:id',         adminAuth, adminProj.deletePhoto);
 app.get('/api/admin/reports',               adminAuth, reports.getAdminReports);
+app.get('/api/admin/dashboard',             adminAuth, reports.getAdminDashboard);
 
 app.get('/health', (_req, res) => res.json({ service: 'project-service', status: 'ok' }));
 

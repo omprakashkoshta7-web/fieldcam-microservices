@@ -62,3 +62,69 @@ exports.getAdminReports = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+exports.getAdminDashboard = async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    const [newProjects, inProgress, underReview, completed,
+      monthRevenue, lastMonthRevenue, recentActivity, vendorPerformance] = await Promise.all([
+      Project.countDocuments({ createdAt: { $gte: startOfMonth } }),
+      Project.countDocuments({ status: 'In Progress' }),
+      Project.countDocuments({ status: 'Under Review' }),
+      Project.countDocuments({ status: { $in: ['Approved', 'Completed'] } }),
+      Invoice.aggregate([{ $match: { status: 'Paid', createdAt: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
+      Invoice.aggregate([{ $match: { status: 'Paid', createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
+      Project.find().sort({ updatedAt: -1 }).limit(10)
+        .populate('assignedTo', 'profile.name email').select('projectNumber title status updatedAt assignedTo payment'),
+      Project.aggregate([
+        { $match: { status: { $in: ['Approved', 'Completed'] }, assignedTo: { $exists: true } } },
+        { $group: { _id: '$assignedTo', completed: { $sum: 1 }, revenue: { $sum: '$payment' } } },
+        { $sort: { completed: -1 } }, { $limit: 6 },
+        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
+        { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+        { $project: { completed: 1, revenue: 1, name: { $ifNull: ['$user.profile.name', 'Unknown'] } } },
+      ]),
+    ]);
+
+    const thisMonthRev = monthRevenue[0]?.total || 0;
+    const lastMonthRev = lastMonthRevenue[0]?.total || 0;
+    const revenueChange = lastMonthRev > 0 ? (((thisMonthRev - lastMonthRev) / lastMonthRev) * 100).toFixed(1) : '0';
+
+    const earningsTrend = await Invoice.aggregate([
+      { $match: { status: 'Paid', createdAt: { $gte: new Date(now.getFullYear(), 0, 1) } } },
+      { $group: { _id: { month: { $month: '$createdAt' } }, revenue: { $sum: '$total' }, expenses: { $sum: 0 } } },
+      { $sort: { '_id.month': 1 } },
+    ]);
+
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const earningsChart = months.map((m, i) => {
+      const found = earningsTrend.find(e => e._id.month === i + 1);
+      return { month: m, revenue: found?.revenue || 0, expenses: found?.expenses || 0 };
+    });
+
+    res.json({
+      stats: {
+        newProjects: { value: newProjects, change: '+12%' },
+        inProgress:  { value: inProgress,  change: '+5%' },
+        underReview: { value: underReview,  change: '-3%' },
+        completed:   { value: completed,    change: '+22%' },
+      },
+      earnings: { monthly: thisMonthRev, change: revenueChange, chart: earningsChart },
+      recentActivity: recentActivity.map(p => ({
+        _id: p._id, title: p.title || `Project ${p.projectNumber}`,
+        status: p.status, updatedAt: p.updatedAt,
+        vendor: p.assignedTo?.profile?.name || 'Unassigned', payment: p.payment,
+      })),
+      vendorPerformance: vendorPerformance.map(v => ({
+        name: v.name, completed: v.completed,
+        score: Math.min(100, Math.round((v.completed / (newProjects || 1)) * 100 + 60)),
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
