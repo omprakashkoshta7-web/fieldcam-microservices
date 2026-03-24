@@ -27,8 +27,12 @@ exports.getProjects = async (req, res) => {
 
 exports.getProjectById = async (req, res) => {
   try {
+    // Try assigned to this user first
     let project = await Project.findOne({ _id: req.params.id, assignedTo: req.user._id });
+    // Fallback: unassigned projects
     if (!project) project = await Project.findOne({ _id: req.params.id, $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }] });
+    // Final fallback: any project with this ID (for completed/historical projects)
+    if (!project) project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
     const photos = await Photo.find({ project: project._id });
     res.json({ ...project.toObject(), photos });
