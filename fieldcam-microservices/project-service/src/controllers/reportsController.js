@@ -84,12 +84,17 @@ exports.getAdminDashboard = async (req, res) => {
       Project.find().sort({ updatedAt: -1 }).limit(10)
         .populate('assignedTo', 'profile.name email').select('projectNumber title status updatedAt assignedTo payment'),
       Project.aggregate([
-        { $match: { status: { $in: ['Approved', 'Completed'] }, assignedTo: { $exists: true } } },
-        { $group: { _id: '$assignedTo', completed: { $sum: 1 }, revenue: { $sum: '$payment' } } },
+        { $match: { assignedTo: { $exists: true } } },
+        { $group: {
+          _id: '$assignedTo',
+          completed: { $sum: { $cond: [{ $in: ['$status', ['Approved','Completed']] }, 1, 0] } },
+          total: { $sum: 1 },
+          revenue: { $sum: '$payment' },
+        }},
         { $sort: { completed: -1 } }, { $limit: 6 },
         { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
         { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-        { $project: { completed: 1, revenue: 1, name: { $ifNull: ['$user.profile.name', 'Unknown'] } } },
+        { $project: { completed: 1, total: 1, revenue: 1, name: { $ifNull: ['$user.profile.name', 'Unknown'] } } },
       ]),
     ]);
 
@@ -123,10 +128,17 @@ exports.getAdminDashboard = async (req, res) => {
         status: p.status, updatedAt: p.updatedAt,
         vendor: p.assignedTo?.profile?.name || 'Unassigned', payment: p.payment,
       })),
-      vendorPerformance: vendorPerformance.map(v => ({
-        name: v.name, completed: v.completed,
-        score: Math.min(100, Math.round((v.completed / (newProjects || 1)) * 100 + 60)),
-      })),
+      vendorPerformance: vendorPerformance.map(v => {
+        const totalForVendor = v.total || v.completed;
+        const rate = totalForVendor > 0 ? Math.min(100, Math.round((v.completed / totalForVendor) * 100)) : 0;
+        return {
+          name: v.name,
+          completed: v.completed,
+          total: v.total || v.completed,
+          revenue: v.revenue || 0,
+          score: rate,
+        };
+      }),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
