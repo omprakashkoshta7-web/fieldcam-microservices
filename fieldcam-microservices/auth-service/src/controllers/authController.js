@@ -39,7 +39,12 @@ exports.verifyOTP = async (req, res) => {
 
     const user = await User.findOne(phone ? { phone } : { email });
     if (!user) return res.status(404).json({ message: 'User not found' });
-    if (!user.matchOTP(otp)) return res.status(400).json({ message: 'Invalid or expired OTP' });
+
+    // Dev mode: bypass OTP check if env flag set OR any 6-digit OTP accepted
+    const bypassOtp = process.env.BYPASS_OTP === 'true' || process.env.NODE_ENV !== 'production';
+    if (!bypassOtp && !user.matchOTP(otp)) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
 
     user.isVerified = true;
     user.otp = undefined;

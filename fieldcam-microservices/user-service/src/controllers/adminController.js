@@ -94,3 +94,36 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+exports.updateAdminProfile = async (req, res) => {
+  try {
+    const { name, company, address, phone } = req.body;
+    const update = {};
+    if (name    !== undefined) update['profile.name']    = name;
+    if (company !== undefined) update['profile.company'] = company;
+    if (address !== undefined) update['profile.address'] = address;
+    if (phone   !== undefined) update.phone = phone;
+
+    // Hardcoded admin fallback — no DB record
+    if (String(req.user?._id) === 'admin_hardcoded') {
+      return res.json({
+        id: 'admin_hardcoded',
+        email: 'admin@fieldworkcam.com',
+        role: 'admin',
+        phone: phone || '',
+        profile: { name: name || 'Admin', company: company || 'FieldWork Cam', address: address || '' },
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: update },
+      { new: true }
+    ).select('-otp -otpExpiry -password');
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

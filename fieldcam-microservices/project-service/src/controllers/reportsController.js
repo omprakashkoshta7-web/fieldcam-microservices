@@ -44,7 +44,9 @@ exports.getReports = async (req, res) => {
 
 exports.getAdminReports = async (req, res) => {
   try {
-    const [projectStats, invoiceStats, photoStats, topVendors] = await Promise.all([
+    const [totalProjects, activeProjects, projectStats, invoiceStats, photoStats, topVendors] = await Promise.all([
+      Project.countDocuments(),
+      Project.countDocuments({ status: { $in: ['Accepted', 'In Progress', 'Submitted', 'Under Review'] } }),
       Project.aggregate([{ $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 }, completed: { $sum: { $cond: [{ $in: ['$status', ['Approved','Completed']] }, 1, 0] } } } }, { $sort: { '_id.year': 1, '_id.month': 1 } }, { $limit: 12 }]),
       Invoice.aggregate([{ $match: { status: 'Paid' } }, { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, total: { $sum: '$total' } } }, { $sort: { '_id.year': 1, '_id.month': 1 } }, { $limit: 12 }]),
       Photo.aggregate([{ $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } }, { $sort: { '_id.year': 1, '_id.month': 1 } }, { $limit: 12 }]),
@@ -57,7 +59,7 @@ exports.getAdminReports = async (req, res) => {
         { $project: { completed: 1, revenue: 1, name: '$user.profile.name', email: '$user.email' } },
       ]),
     ]);
-    res.json({ projectStats, invoiceStats, photoStats, topVendors });
+    res.json({ totalProjects, activeProjects, projectStats, invoiceStats, photoStats, topVendors });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -70,12 +72,13 @@ exports.getAdminDashboard = async (req, res) => {
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
-    const [newProjects, inProgress, underReview, completed,
+    const [newProjects, inProgress, underReview, completed, totalProjects,
       monthRevenue, lastMonthRevenue, recentActivity, vendorPerformance] = await Promise.all([
       Project.countDocuments({ createdAt: { $gte: startOfMonth } }),
       Project.countDocuments({ status: 'In Progress' }),
       Project.countDocuments({ status: 'Under Review' }),
       Project.countDocuments({ status: { $in: ['Approved', 'Completed'] } }),
+      Project.countDocuments(),
       Invoice.aggregate([{ $match: { status: 'Paid', createdAt: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
       Invoice.aggregate([{ $match: { status: 'Paid', createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
       Project.find().sort({ updatedAt: -1 }).limit(10)
@@ -112,6 +115,7 @@ exports.getAdminDashboard = async (req, res) => {
         inProgress:  { value: inProgress,  change: '+5%' },
         underReview: { value: underReview,  change: '-3%' },
         completed:   { value: completed,    change: '+22%' },
+        totalProjects: totalProjects,
       },
       earnings: { monthly: thisMonthRev, change: revenueChange, chart: earningsChart },
       recentActivity: recentActivity.map(p => ({

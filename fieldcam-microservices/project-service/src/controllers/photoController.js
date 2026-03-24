@@ -56,7 +56,8 @@ exports.uploadPhoto = async (req, res) => {
     const { projectId, category } = req.body;
     if (!projectId || !category) return res.status(400).json({ message: 'projectId and category required' });
 
-    const fileUrl = `${req.protocol}://${process.env.SERVER_HOST || req.headers.host}/uploads/${req.file.filename}`;
+    const baseUrl = process.env.SERVER_URL || `${req.protocol}://${req.headers.host}`;
+    const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
 
     let aiValidation = { qualityScore: 80, passed: true, blurScore: 200, brightnessScore: 128, warnings: [] };
     try {

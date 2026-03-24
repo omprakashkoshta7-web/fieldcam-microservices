@@ -66,6 +66,7 @@ app.get('/api/admin/users',       adminAuth, admin.getUsers);
 app.post('/api/admin/users',      adminAuth, admin.createUser);
 app.patch('/api/admin/users/:id', adminAuth, admin.updateUser);
 app.delete('/api/admin/users/:id',adminAuth, admin.deleteUser);
+app.patch('/api/admin/profile',   adminAuth, admin.updateAdminProfile);
 
 app.get('/health', (_req, res) => res.json({ service: 'user-service', status: 'ok' }));
 
