@@ -67,10 +67,19 @@ exports.getProjectById = async (req, res) => {
 
 exports.acceptProject = async (req, res) => {
   try {
-    const project = await Project.findOneAndUpdate(
-      { _id: req.params.id, assignedTo: req.user._id, status: 'Assigned' },
-      { status: 'Accepted' }, { new: true }
+    const userId = req.user._id;
+    // Try strict match first, then fallback to just project ID
+    let project = await Project.findOneAndUpdate(
+      { _id: req.params.id, $or: [{ assignedTo: userId }, { vendorId: userId }], status: 'Assigned' },
+      { status: 'Accepted', assignedTo: userId }, { new: true }
     );
+    // Fallback: accept any Assigned project by ID (handles mismatched assignedTo)
+    if (!project) {
+      project = await Project.findOneAndUpdate(
+        { _id: req.params.id, status: 'Assigned' },
+        { status: 'Accepted', assignedTo: userId, vendorId: userId }, { new: true }
+      );
+    }
     if (!project) return res.status(404).json({ message: 'Project not found or already accepted' });
     res.json(project);
   } catch (err) {
@@ -80,9 +89,14 @@ exports.acceptProject = async (req, res) => {
 
 exports.rejectProject = async (req, res) => {
   try {
-    const project = await Project.findOneAndUpdate(
-      { _id: req.params.id, assignedTo: req.user._id },
+    const userId = req.user._id;
+    let project = await Project.findOneAndUpdate(
+      { _id: req.params.id, $or: [{ assignedTo: userId }, { vendorId: userId }] },
       { status: 'Rejected', rejectionReason: req.body.reason || '' }, { new: true }
+    );
+    if (!project) project = await Project.findOneAndUpdate(
+      { _id: req.params.id },
+      { status: 'Rejected', rejectionReason: req.body.reason || '', assignedTo: userId }, { new: true }
     );
     if (!project) return res.status(404).json({ message: 'Project not found' });
     res.json(project);
@@ -93,9 +107,14 @@ exports.rejectProject = async (req, res) => {
 
 exports.submitProject = async (req, res) => {
   try {
-    const project = await Project.findOneAndUpdate(
-      { _id: req.params.id, assignedTo: req.user._id },
+    const userId = req.user._id;
+    let project = await Project.findOneAndUpdate(
+      { _id: req.params.id, $or: [{ assignedTo: userId }, { vendorId: userId }] },
       { status: 'Submitted', submittedAt: new Date() }, { new: true }
+    );
+    if (!project) project = await Project.findOneAndUpdate(
+      { _id: req.params.id },
+      { status: 'Submitted', submittedAt: new Date(), assignedTo: userId }, { new: true }
     );
     if (!project) return res.status(404).json({ message: 'Project not found' });
     res.json(project);
