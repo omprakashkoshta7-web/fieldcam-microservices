@@ -27,12 +27,23 @@ exports.getProjects = async (req, res) => {
 
 exports.getProjectById = async (req, res) => {
   try {
+    const { id } = req.params;
+    const mongoose = require('mongoose');
+
+    // If not a valid ObjectId, try finding by projectNumber instead
+    if (!mongoose.isValidObjectId(id)) {
+      const project = await Project.findOne({ projectNumber: id });
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      const photos = await Photo.find({ project: project._id });
+      return res.json({ ...project.toObject(), photos });
+    }
+
     // Try assigned to this user first
-    let project = await Project.findOne({ _id: req.params.id, assignedTo: req.user._id });
+    let project = await Project.findOne({ _id: id, assignedTo: req.user._id });
     // Fallback: unassigned projects
-    if (!project) project = await Project.findOne({ _id: req.params.id, $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }] });
-    // Final fallback: any project with this ID (for completed/historical projects)
-    if (!project) project = await Project.findById(req.params.id);
+    if (!project) project = await Project.findOne({ _id: id, $or: [{ assignedTo: { $exists: false } }, { assignedTo: null }] });
+    // Final fallback: any project with this ID
+    if (!project) project = await Project.findById(id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
     const photos = await Photo.find({ project: project._id });
     res.json({ ...project.toObject(), photos });
