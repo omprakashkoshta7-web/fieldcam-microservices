@@ -1,6 +1,7 @@
 const Project = require('../models/Project');
 const Photo = require('../models/Photo');
 const Invoice = require('../models/Invoice');
+const User = require('../models/User');
 
 exports.getReports = async (req, res) => {
   try {
@@ -83,18 +84,27 @@ exports.getAdminDashboard = async (req, res) => {
       Invoice.aggregate([{ $match: { status: 'Paid', createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
       Project.find().sort({ updatedAt: -1 }).limit(10)
         .populate('assignedTo', 'profile.name email').select('projectNumber title status updatedAt assignedTo payment'),
-      Project.aggregate([
-        { $match: { assignedTo: { $exists: true } } },
-        { $group: {
-          _id: '$assignedTo',
-          completed: { $sum: { $cond: [{ $in: ['$status', ['Approved','Completed']] }, 1, 0] } },
-          total: { $sum: 1 },
-          revenue: { $sum: '$payment' },
+      User.aggregate([
+        { $match: { role: 'vendor', isActive: true } },
+        { $lookup: {
+          from: 'projects',
+          localField: '_id',
+          foreignField: 'assignedTo',
+          as: 'projects',
         }},
-        { $sort: { completed: -1 } }, { $limit: 6 },
-        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
-        { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-        { $project: { completed: 1, total: 1, revenue: 1, name: { $ifNull: ['$user.profile.name', 'Unknown'] } } },
+        { $project: {
+          name: { $ifNull: ['$profile.name', { $ifNull: ['$email', '$phone'] }] },
+          phone: 1,
+          completed: {
+            $size: {
+              $filter: { input: '$projects', as: 'p', cond: { $in: ['$$p.status', ['Approved','Completed']] } }
+            }
+          },
+          total: { $size: '$projects' },
+          revenue: { $sum: '$projects.payment' },
+        }},
+        { $sort: { total: -1 } },
+        { $limit: 6 },
       ]),
     ]);
 
