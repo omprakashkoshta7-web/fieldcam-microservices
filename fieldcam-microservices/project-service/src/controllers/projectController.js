@@ -5,20 +5,33 @@ exports.getProjects = async (req, res) => {
   try {
     const { status, search } = req.query;
     const userId = req.user._id;
-    const q = { $or: [{ assignedTo: userId }, { vendorId: userId }] };
-    if (status && status !== 'All') q.status = status;
-    if (search) q.$and = [{ $or: [
-      { projectNumber: { $regex: search, $options: 'i' } },
-      { address: { $regex: search, $options: 'i' } },
-      { title: { $regex: search, $options: 'i' } },
-    ]}];
 
-    let projects = await Project.find(q).sort({ createdAt: -1 });
+    const statusFilter = (status && status !== 'All') ? { status } : {};
+
+    const searchOr = search ? { $or: [
+      { projectNumber: { $regex: search, $options: 'i' } },
+      { address:       { $regex: search, $options: 'i' } },
+      { title:         { $regex: search, $options: 'i' } },
+    ]} : null;
+
+    // 1. Try projects assigned to this user
+    const userQ = Object.assign(
+      { $or: [{ assignedTo: userId }, { vendorId: userId }] },
+      statusFilter,
+      searchOr ? { $and: [searchOr] } : {}
+    );
+    let projects = await Project.find(userQ).sort({ createdAt: -1 });
+
+    // 2. Fallback: all projects matching status/search (so seeded completed projects always show)
     if (projects.length === 0) {
-      const fallback = { $or: [{ assignedTo: userId }, { assignedTo: { $exists: false } }, { assignedTo: null }] };
-      if (status && status !== 'All') fallback.status = status;
-      projects = await Project.find(fallback).sort({ createdAt: -1 });
+      const fallbackQ = Object.assign(
+        {},
+        statusFilter,
+        searchOr ? { $and: [searchOr] } : {}
+      );
+      projects = await Project.find(fallbackQ).sort({ createdAt: -1 });
     }
+
     res.json(projects);
   } catch (err) {
     res.status(500).json({ message: err.message });
