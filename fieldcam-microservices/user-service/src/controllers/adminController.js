@@ -45,7 +45,7 @@ exports.getDashboard = async (req, res) => {
 
 exports.getUsers = async (req, res) => {
   try {
-    const { role, search, page = 1, limit = 20 } = req.query;
+    const { role, search, page = 1, limit = 20, hasProjects } = req.query;
     const query = {};
     if (role) query.role = role;
     if (search) query.$or = [
@@ -53,6 +53,13 @@ exports.getUsers = async (req, res) => {
       { email: { $regex: search, $options: 'i' } },
       { phone: { $regex: search, $options: 'i' } },
     ];
+
+    // Filter: only vendors who have at least one project assigned
+    if (hasProjects === 'true') {
+      const assignedIds = await Project.distinct('assignedTo', { assignedTo: { $ne: null } });
+      query._id = { $in: assignedIds };
+    }
+
     const skip = (page - 1) * limit;
     const [users, total] = await Promise.all([
       User.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).select('-otp -otpExpiry'),
