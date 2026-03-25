@@ -10,10 +10,12 @@ exports.getDashboard = async (req, res) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    const assignedVendorIds = await Project.distinct('assignedTo', { assignedTo: { $ne: null } });
+
     const [totalVendors, activeVendors, totalProjects, activeProjects, completedProjects,
       pendingReview, totalPhotos, totalRevenue, monthRevenue, recentProjects, recentUsers] = await Promise.all([
-      User.countDocuments({ role: { $in: ['vendor', 'staff'] } }),
-      User.countDocuments({ role: { $in: ['vendor', 'staff'] }, isActive: true }),
+      User.countDocuments({ role: { $in: ['vendor', 'staff'] }, _id: { $in: assignedVendorIds } }),
+      User.countDocuments({ role: { $in: ['vendor', 'staff'] }, isActive: true, _id: { $in: assignedVendorIds } }),
       Project.countDocuments(),
       Project.countDocuments({ status: { $in: ['Accepted', 'In Progress'] } }),
       Project.countDocuments({ status: { $in: ['Approved', 'Completed'] } }),
@@ -22,7 +24,7 @@ exports.getDashboard = async (req, res) => {
       Invoice.aggregate([{ $match: { status: 'Paid' } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
       Invoice.aggregate([{ $match: { status: 'Paid', createdAt: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
       Project.find().sort({ updatedAt: -1 }).limit(8).populate('assignedTo', 'profile.name email phone').select('projectNumber title status priority payment deadline address updatedAt'),
-      User.find({ role: { $in: ['vendor', 'staff'] } }).sort({ createdAt: -1 }).limit(5).select('profile email phone role isActive createdAt'),
+      User.find({ role: { $in: ['vendor', 'staff'] }, _id: { $in: assignedVendorIds } }).sort({ createdAt: -1 }).limit(5).select('profile email phone role isActive createdAt'),
     ]);
 
     const trend = await Invoice.aggregate([
@@ -33,17 +35,46 @@ exports.getDashboard = async (req, res) => {
 
     const statusBreakdown = await Project.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]);
 
+    const vendorPerfAgg = await Project.aggregate([
+      { $match: { assignedTo: { $in: assignedVendorIds } } },
+      { $group: {
+        _id: '$assignedTo',
+        total: { $sum: 1 },
+        completed: { $sum: { $cond: [{ $in: ['$status', ['Completed', 'Approved']] }, 1, 0] } },
+        approved: { $sum: { $cond: [{ $eq: ['$status', 'Approved'] }, 1, 0] } },
+        rejected: { $sum: { $cond: [{ $eq: ['$status', 'Rejected'] }, 1, 0] } },
+        onTime: { $sum: { $cond: [
+          { $and: [
+            { $in: ['$status', ['Completed', 'Approved']] },
+            { $lte: ['$submittedAt', '$deadline'] }
+          ]}, 1, 0
+        ]}},
+      }},
+    ]);
+    const vendorUserDocs = await User.find({ _id: { $in: vendorPerfAgg.map(v => v._id) } }).select('profile.name email');
+    const vendorMap = Object.fromEntries(vendorUserDocs.map(u => [u._id.toString(), u]));
+    const vendorPerformance = vendorPerfAgg.map(v => {
+      const u = vendorMap[v._id.toString()];
+      // Realistic score: completion rate (60%) + no-rejection bonus (25%) + on-time bonus (15%)
+      const completionRate = v.total > 0 ? (v.completed / v.total) : 0;
+      const rejectionPenalty = v.total > 0 ? (v.rejected / v.total) : 0;
+      const onTimeRate = v.completed > 0 ? (v.onTime / v.completed) : 0;
+      // Base: 50 + completion contribution + ontime bonus - rejection penalty
+      const rawScore = 50 + (completionRate * 30) + (onTimeRate * 15) - (rejectionPenalty * 20);
+      const score = Math.min(98, Math.max(10, Math.round(rawScore)));
+      return { name: u?.profile?.name || u?.email || 'Vendor', completed: v.completed, total: v.total, score };
+    }).sort((a, b) => b.score - a.score);
+
     res.json({
       stats: { totalVendors, activeVendors, totalProjects, activeProjects, completedProjects, pendingReview,
         totalPhotos, totalRevenue: totalRevenue[0]?.total || 0, monthRevenue: monthRevenue[0]?.total || 0 },
       trend: trend.map(t => ({ month: t._id.month, year: t._id.year, amount: t.total })),
-      statusBreakdown, recentProjects, recentUsers,
+      statusBreakdown, recentProjects, recentUsers, vendorPerformance,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
-
 exports.getUsers = async (req, res) => {
   try {
     const { role, search, page = 1, limit = 20, hasProjects } = req.query;
