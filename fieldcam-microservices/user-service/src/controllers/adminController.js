@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Photo = require('../models/Photo');
@@ -65,7 +66,45 @@ exports.getUsers = async (req, res) => {
       User.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).select('-otp -otpExpiry'),
       User.countDocuments(query),
     ]);
-    res.json({ users, total, page: Number(page), pages: Math.ceil(total / limit) });
+
+    // Attach real per-vendor stats
+    const userIds = users.map(u => new mongoose.Types.ObjectId(u._id));
+    const [projectStats, approvedStats, activeStats, totalStats] = await Promise.all([
+      Project.aggregate([
+        { $match: { assignedTo: { $in: userIds }, status: { $in: ['Completed', 'Approved'] } } },
+        { $group: { _id: '$assignedTo', count: { $sum: 1 } } },
+      ]),
+      Project.aggregate([
+        { $match: { assignedTo: { $in: userIds }, status: 'Approved' } },
+        { $group: { _id: '$assignedTo', count: { $sum: 1 } } },
+      ]),
+      Project.aggregate([
+        { $match: { assignedTo: { $in: userIds }, status: { $nin: ['Completed', 'Approved', 'Rejected'] } } },
+        { $group: { _id: '$assignedTo', count: { $sum: 1 } } },
+      ]),
+      Project.aggregate([
+        { $match: { assignedTo: { $in: userIds } } },
+        { $group: { _id: '$assignedTo', total: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const toMap = arr => Object.fromEntries(arr.map(x => [x._id.toString(), x.count ?? x.total]));
+    const completedMap = toMap(projectStats);
+    const approvedMap  = toMap(approvedStats);
+    const activeMap    = toMap(activeStats);
+    const totalMap     = toMap(totalStats);
+
+    const usersWithStats = users.map(u => {
+      const uid = u._id.toString();
+      const totalProjects = totalMap[uid] || 0;
+      const completed     = completedMap[uid] || 0;
+      const approved      = approvedMap[uid] || 0;
+      const active        = activeMap[uid] || 0;
+      const approvalRate  = totalProjects > 0 ? Math.round((approved / totalProjects) * 100) : 0;
+      return { ...u.toObject(), stats: { completed, active, approvalRate, totalProjects } };
+    });
+
+    res.json({ users: usersWithStats, total, page: Number(page), pages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
