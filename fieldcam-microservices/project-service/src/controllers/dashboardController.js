@@ -11,7 +11,7 @@ exports.getDashboard = async (req, res) => {
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
     const [activeProjects, dueTodayProjects, totalPhotos, approvedProjects, totalProjects,
-      completedProjects, rejectedProjects,
+      completedProjects, rejectedProjects, pendingProjects,
       monthlyEarnings, lastMonthEarnings, recentProjects] = await Promise.all([
       Project.countDocuments({ assignedTo: userId, status: { $in: ['Accepted', 'In Progress'] } }),
       Project.countDocuments({ assignedTo: userId, deadline: { $gte: new Date(now.setHours(0,0,0,0)), $lte: new Date(now.setHours(23,59,59,999)) }, status: { $nin: ['Completed', 'Rejected'] } }),
@@ -20,6 +20,7 @@ exports.getDashboard = async (req, res) => {
       Project.countDocuments({ assignedTo: userId }),
       Project.countDocuments({ assignedTo: userId, status: 'Completed' }),
       Project.countDocuments({ assignedTo: userId, status: 'Rejected' }),
+      Project.countDocuments({ assignedTo: userId, status: { $in: ['Submitted', 'Under Review'] } }),
       Invoice.aggregate([{ $match: { vendor: userId, status: 'Paid', createdAt: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
       Invoice.aggregate([{ $match: { vendor: userId, status: 'Paid', createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
       Project.find({ assignedTo: userId }).sort({ updatedAt: -1 }).limit(10).select('projectNumber title status updatedAt address payment image'),
@@ -47,7 +48,7 @@ exports.getDashboard = async (req, res) => {
 
     res.json({
       user: { name: req.user.profile?.name || 'Vendor', company: req.user.profile?.company || '', avatar: req.user.profile?.avatar || '' },
-      stats: { activeProjects, dueToday: dueTodayProjects, alerts: 0, totalPhotos, approvalRate, onTimeRate: 98, vendorRating: 4.8, completedProjects, rejectedProjects },
+      stats: { activeProjects, pendingProjects, dueToday: dueTodayProjects, alerts: 0, totalPhotos, approvalRate, onTimeRate: 98, vendorRating: 4.8, completedProjects, rejectedProjects },
       earnings: { monthly: thisMonth, change: earningsChange },
       recentActivity: displayProjects.map(p => ({ _id: p._id, title: p.title || `Project ${p.projectNumber}`, address: p.address, time: p.updatedAt, status: p.status, payment: p.payment, image: p.image || null })),
     });
