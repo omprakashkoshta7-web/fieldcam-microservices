@@ -47,6 +47,7 @@ app.patch('/api/projects/:id/submit', auth, projects.submitProject);
 // Dashboard & reports
 app.get('/api/dashboard', auth, dashboard.getDashboard);
 app.get('/api/reports',   auth, reports.getReports);
+app.get('/api/reports/:projectId/pdf', auth, reports.downloadProjectReportPdf);
 
 // Photo routes
 app.post('/api/photos/quality-check', auth, memUpload.single('photo'), photos.qualityCheck);
@@ -71,3 +72,4 @@ app.get('/health', (_req, res) => res.json({ service: 'project-service', status:
 
 const PORT = process.env.PORT || 3003;
 app.listen(PORT, () => console.log(`project-service running on port ${PORT}`));
+
