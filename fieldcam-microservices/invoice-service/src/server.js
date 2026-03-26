@@ -32,6 +32,7 @@ app.get('/api/earnings/payments', auth, earnings.getPayments);
 
 // Admin invoice routes
 app.get('/api/admin/invoices',              adminAuth, inv.getAdminInvoices);
+app.get('/api/admin/invoices/:id/pdf',      adminAuth, pdf.downloadAdminPdf);
 app.post('/api/admin/invoices',             adminAuth, inv.createAdminInvoice);
 app.patch('/api/admin/invoices/:id/status', adminAuth, inv.updateInvoiceStatus);
 app.delete('/api/admin/invoices/:id',       adminAuth, inv.deleteInvoice);
