@@ -2,7 +2,22 @@ const Project = require('../models/Project');
 const Photo = require('../models/Photo');
 const Invoice = require('../models/Invoice');
 const User = require('../models/User');
-const PDFDocument = require('pdfkit');
+
+function getPdfDocument() {
+  try {
+    return require('pdfkit');
+  } catch (err) {
+    if (err.code === 'MODULE_NOT_FOUND' && err.message.includes("'pdfkit'")) {
+      const dependencyError = new Error(
+        'PDF generation is unavailable because the pdfkit dependency is not installed on this service.',
+      );
+      dependencyError.statusCode = 503;
+      dependencyError.code = 'PDFKIT_MISSING';
+      throw dependencyError;
+    }
+    throw err;
+  }
+}
 
 exports.getReports = async (req, res) => {
   try {
@@ -171,6 +186,7 @@ exports.downloadProjectReportPdf = async (req, res) => {
 
     const photos = await Photo.find({ project: project._id }).sort({ createdAt: 1 });
 
+    const PDFDocument = getPdfDocument();
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     const filename = `${project.projectNumber || 'project-report'}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
@@ -328,6 +344,11 @@ exports.downloadProjectReportPdf = async (req, res) => {
     });
     doc.end();
   } catch (err) {
-    if (!res.headersSent) res.status(500).json({ message: err.message });
+    if (!res.headersSent) {
+      res.status(err.statusCode || 500).json({
+        message: err.message || 'Failed to generate project report PDF',
+        code: err.code,
+      });
+    }
   }
 };
