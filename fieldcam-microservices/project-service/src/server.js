@@ -61,6 +61,7 @@ app.patch('/api/admin/projects/:id',        adminAuth, adminProj.updateProject);
 app.patch('/api/admin/projects/:id/approve',adminAuth, adminProj.approveProject);
 app.patch('/api/admin/projects/:id/reject', adminAuth, adminProj.rejectProject);
 app.patch('/api/admin/projects/:id/assign', adminAuth, adminProj.assignProject);
+app.post('/api/admin/projects/bulk-assign', adminAuth, adminProj.bulkAssignProjects);
 app.delete('/api/admin/projects/:id',       adminAuth, adminProj.deleteProject);
 app.get('/api/admin/photos',                adminAuth, adminProj.getPhotos);
 app.patch('/api/admin/photos/:id/status',   adminAuth, adminProj.updatePhotoStatus);
